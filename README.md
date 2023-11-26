@@ -40,9 +40,10 @@ Automate the extraction of information from a YouTube playlist, organize it in a
 Run the following SQL query in an SQLite browser to view the stored data:
 
 ```sql
-SELECT Song.title, Artist.name, Song.link
+SELECT Song.title, Artist.name, Song.link, Song.view_count
 FROM Song
-JOIN Artist ON Song.artist_id = Artist.id;
+JOIN Artist ON Song.artist_id = Artist.id
+ORDER BY Song.view_count DESC;
 ```
 
 
