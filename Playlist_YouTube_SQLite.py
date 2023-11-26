@@ -52,6 +52,19 @@ def get_view_count(youtube, video_id):
 
     return None  # Return None if view count could not be fetched
 
+def format_view_count(view_count):
+    if view_count is not None:
+        if view_count >= 1_000_000_000:
+            return f'{view_count / 1_000_000_000:.2f}B'
+        elif view_count >= 1_000_000:
+            return f'{view_count / 1_000_000:.2f}M'
+        elif view_count >= 1_000:
+            return f'{view_count / 1_000:.2f}k'
+        else:
+            return str(view_count)
+    else:
+        return 'N/A'
+
 
 def authorization():
     # Disable OAuthlib's HTTPS verification when running locally.
@@ -177,7 +190,7 @@ def main():
         send_telegram_message(token, chat_id, message)
         message = f"{artist}{title}"
         send_telegram_message(token, chat_id, message)
-        message = f"Link: {link}\nView Count: {view_count}"
+        message = f"Link: {link}\nView Count: {format_view_count(view_count)}"
         send_telegram_message(token, chat_id, message)
             
 
