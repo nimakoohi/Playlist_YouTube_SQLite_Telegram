@@ -13,6 +13,8 @@ import pickle
 import requests
 #This import Telegram Bot
 
+import re
+
 
 scopes = ["https://www.googleapis.com/auth/youtube.readonly"]
 
@@ -36,6 +38,19 @@ def get_playlist_items(youtube, playlist_id, max_results=50):
             break
 
     return playlist_items
+
+def get_view_count(youtube, video_id):
+    request = youtube.videos().list(
+        part="id,statistics",
+        id=video_id
+    )
+    response = request.execute()
+
+    if 'items' in response and len(response['items']) > 0:
+        if 'statistics' in response['items'][0] and 'viewCount' in response['items'][0]['statistics']:
+            return int(response['items'][0]['statistics']['viewCount'])
+
+    return None  # Return None if view count could not be fetched
 
 
 def authorization():
@@ -82,8 +97,6 @@ def authorization():
 def send_telegram_message(token, chat_id, message):
     url = f"https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={message}"
     response = requests.get(url)
-    print(response.status_code)
-    print(response.json())
 
 
 def main():
@@ -105,7 +118,8 @@ def main():
         id  INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
         title   TEXT UNIQUE,
         artist_id  INTEGER,
-        link    TEXT UNIQUE
+        link    TEXT UNIQUE,
+        view_count INTEGER
     )
     ''')
     
@@ -124,35 +138,48 @@ def main():
 
     playlist_items = get_playlist_items(youtube, playlist_id, max_results)
 
-    for i, item in enumerate(playlist_items):
+    for i,item in enumerate(playlist_items):
         print(f'Number of Music {i + 1}')
 
-        title_Track = (item["snippet"]["title"]).split('-')
-        artist = title_Track[0]
-        print('Artist is: ',artist)
+        title_Track = re.split(r'([-|–].*)', item["snippet"]["title"])
+        
+        artist = title_Track[0].strip()
+        
         if artist == 'Deleted video':
             continue
         else:
             try:
-                song = title_Track[1]
-                print('Song is: ',song)
+                song = title_Track[1].strip()
             except:
                 song = "THIS IS A CONCERT LIVE OR SOMETHING LIKE THIS"
                 
             link = f'https://youtu.be/{item["snippet"]["resourceId"]["videoId"]}'
+            
+            # Fetch view count for this video
+            view_count = get_view_count(youtube, item["snippet"]["resourceId"]["videoId"])
             
             cur.execute('''INSERT OR IGNORE INTO Artist (name) 
                         VALUES ( ? )''', ( artist, ) )
             cur.execute('SELECT id FROM Artist WHERE name = ? ', (artist, ))
             artist_id = cur.fetchone()[0]
             
-            cur.execute('''INSERT OR REPLACE INTO Song (title, artist_id, link)
-                        VALUES ( ?, ?, ? )''', (song, artist_id, link, ) )
-            conn.commit() # Commit the changes to the database
+            cur.execute('''INSERT OR REPLACE INTO Song (title, artist_id, link, view_count)
+                    VALUES ( ?, ?, ?, ? )''', (song, artist_id, link, view_count, ) )
             
-            message = song, artist, link
+            conn.commit()  # Commit the changes to the database
             
-            send_telegram_message(token, chat_id, message)
+    cur.execute('SELECT Song.title, Artist.name, Song.link, Song.view_count FROM Song JOIN Artist ON Song.artist_id = Artist.id ORDER BY Song.view_count DESC')
+    sorted_songs = cur.fetchall()
+    
+    for i, song in enumerate(sorted_songs):
+        title, artist, link, view_count = song
+        message = f'Top {i + 1}'
+        send_telegram_message(token, chat_id, message)
+        message = f"{artist}{title}"
+        send_telegram_message(token, chat_id, message)
+        message = f"Link: {link}\nView Count: {view_count}"
+        send_telegram_message(token, chat_id, message)
+            
 
 if __name__ == "__main__":
     
@@ -163,6 +190,3 @@ if __name__ == "__main__":
     chat_id = input("Insert Your Chat ID: ")
 
     main()
-
-'''Prompt this command to the Tap on Execute SQL in SQlite Broswer app:
-SELECT Song.title,Artist.name,Song.link FROM Song JOIN Artist ON Song.artist_id = Artist.id'''
