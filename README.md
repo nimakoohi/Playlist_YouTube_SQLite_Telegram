@@ -29,6 +29,11 @@ Automate the extraction of information from a YouTube playlist, organize it in a
 
 5. Insert your Telegram Bot Token and Chat ID when prompted.
 
+## Usage
+
+- The script will extract information from the provided YouTube playlist and store it in an SQLite database.
+- Top songs with their artists, links, and view counts will be sent to your Telegram.
+- The songs are sorted by view count, showcasing the most popular ones first.
 
 ## Database Query
 
