@@ -15,6 +15,8 @@ import requests
 
 import re
 
+import time
+
 
 scopes = ["https://www.googleapis.com/auth/youtube.readonly"]
 
@@ -114,45 +116,46 @@ def send_telegram_message(token, chat_id, message):
 
 def main():
     
+    
     conn = sqlite3.connect('PlaylistYouTube.sqlite')
     cur = conn.cursor()
 
     # Make some fresh tables using executescript()
-    cur.executescript('''
+    cur.executescript(''' 
     DROP TABLE IF EXISTS Artist;
     DROP TABLE IF EXISTS Song;
 
-    CREATE TABLE Artist (
+    CREATE TABLE IF NOT EXISTS Artist (
         id  INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
         name    TEXT UNIQUE
     );
     
-    CREATE TABLE Song (
+    
+    CREATE TABLE IF NOT EXISTS Song (
         id  INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
         title   TEXT UNIQUE,
         artist_id  INTEGER,
         link    TEXT UNIQUE,
         view_count INTEGER
-    )
+    );
     ''')
+    
     
     
     youtube = authorization()
     
     
-    playlist_id = input("INSERT YOUR PLAYLIST Address HERE: ")
-    '''
-    You can find addresses such a the example below:
-    https://www.youtube.com/playlist?list=PLfzRniKpg9XQ_HExJ_ceAhnOdi5rqlY9m
-    => PLfzRniKpg9XQ_HExJ_ceAhnOdi5rqlY9m
-    '''
+    playlist_id = input("INSERT YOUR PLAYLIST Address Link HERE: ")
+    playlist_id = playlist_id.strip()
+    playlist_id = re.split(r'playlist\?list=(.+)', playlist_id)
+    playlist_id = playlist_id[1].strip()
     
     max_results = int(input("Please Insert the total number of items in your playlist: "))
+    
 
     playlist_items = get_playlist_items(youtube, playlist_id, max_results)
 
     for i,item in enumerate(playlist_items):
-        print(f'Number of Music {i + 1}')
 
         title_Track = re.split(r'([-|–].*)', item["snippet"]["title"])
         
@@ -164,9 +167,18 @@ def main():
             try:
                 song = title_Track[1].strip()
             except:
-                song = "THIS IS A CONCERT LIVE OR SOMETHING LIKE THIS"
+                song = "  THIS IS A CONCERT LIVE OR SOMETHING LIKE THIS"
                 
             link = f'https://youtu.be/{item["snippet"]["resourceId"]["videoId"]}'
+            
+            # Check if the link already exists in the database
+            cur.execute('SELECT id FROM Song WHERE link = ?', (link,))
+            existing_link = cur.fetchone()
+
+            if existing_link:
+                print(f'Song with link {link} already exists. Skipping...')
+                time.sleep(2)
+                continue
             
             # Fetch view count for this video
             view_count = get_view_count(youtube, item["snippet"]["resourceId"]["videoId"])
@@ -176,23 +188,32 @@ def main():
             cur.execute('SELECT id FROM Artist WHERE name = ? ', (artist, ))
             artist_id = cur.fetchone()[0]
             
-            cur.execute('''INSERT OR REPLACE INTO Song (title, artist_id, link, view_count)
+            cur.execute('''INSERT OR IGNORE INTO Song (title, artist_id, link, view_count)
                     VALUES ( ?, ?, ?, ? )''', (song, artist_id, link, view_count, ) )
             
             conn.commit()  # Commit the changes to the database
             
+            print(f'Music {i + 1} has been uploaded to the Database!!')
+                
+                
     cur.execute('SELECT Song.title, Artist.name, Song.link, Song.view_count FROM Song JOIN Artist ON Song.artist_id = Artist.id ORDER BY Song.view_count DESC')
     sorted_songs = cur.fetchall()
     
+
     for i, song in enumerate(sorted_songs):
         title, artist, link, view_count = song
+        
+        # Send the message to Telegram
         message = f'Top {i + 1}'
         send_telegram_message(token, chat_id, message)
         message = f"{artist}{title}"
         send_telegram_message(token, chat_id, message)
         message = f"Link: {link}\nView Count: {format_view_count(view_count)}"
         send_telegram_message(token, chat_id, message)
-            
+
+        print(f"Music Number {i + 1} has been sent on Telegram!!")
+
+         
 
 if __name__ == "__main__":
     
