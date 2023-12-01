@@ -124,17 +124,12 @@ def main():
     cur.executescript(''' 
     DROP TABLE IF EXISTS Artist;
     DROP TABLE IF EXISTS Song;
-
-    CREATE TABLE IF NOT EXISTS Artist (
-        id  INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
-        name    TEXT UNIQUE
-    );
     
     
     CREATE TABLE IF NOT EXISTS Song (
         id  INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
-        title   TEXT UNIQUE,
-        artist_id  INTEGER,
+        Artist TEXT,
+        title   TEXT,
         link    TEXT UNIQUE,
         view_count INTEGER
     );
@@ -183,20 +178,16 @@ def main():
             # Fetch view count for this video
             view_count = get_view_count(youtube, item["snippet"]["resourceId"]["videoId"])
             
-            cur.execute('''INSERT OR IGNORE INTO Artist (name) 
-                        VALUES ( ? )''', ( artist, ) )
-            cur.execute('SELECT id FROM Artist WHERE name = ? ', (artist, ))
-            artist_id = cur.fetchone()[0]
             
-            cur.execute('''INSERT OR IGNORE INTO Song (title, artist_id, link, view_count)
-                    VALUES ( ?, ?, ?, ? )''', (song, artist_id, link, view_count, ) )
+            cur.execute('''INSERT INTO Song (Artist, title, link, view_count)
+                    VALUES ( ?, ?, ?, ? )''', (artist, song, link, view_count, ) )
             
             conn.commit()  # Commit the changes to the database
             
             print(f'Music {i + 1} has been uploaded to the Database!!')
                 
                 
-    cur.execute('SELECT Song.title, Artist.name, Song.link, Song.view_count FROM Song JOIN Artist ON Song.artist_id = Artist.id ORDER BY Song.view_count DESC')
+    cur.execute('SELECT Song.Artist, Song.title, Song.link, Song.view_count FROM Song ORDER BY Song.view_count DESC')
     sorted_songs = cur.fetchall()
     
 
@@ -217,7 +208,6 @@ def main():
 
 if __name__ == "__main__":
     
-    #TELEGRAM SEND ARTIST, SONG and LINK
     token = input("Insert Your TELEGRAM Bot Token: ")
     
     #For finding the Chat ID in Telegram You can Use this Bot: https://t.me/getmyid_bot
